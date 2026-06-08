@@ -1,0 +1,104 @@
+x-app-env: &app-env
+  RAILS_ENV: ${RAILS_ENV:-development}
+  DATABASE_HOST: db
+  DATABASE_PORT: 5432
+  DATABASE_USERNAME: postgres
+  DATABASE_PASSWORD: postgres
+  DATABASE_NAME: github_ingestor_development
+  REDIS_URL: redis://redis:6379/0
+  SECRET_KEY_BASE: ${SECRET_KEY_BASE:-dev_secret_key_base_change_me}
+  ENRICHMENT_RATE_RESERVE: ${ENRICHMENT_RATE_RESERVE:-15}
+  ENRICHMENT_TTL_HOURS: ${ENRICHMENT_TTL_HOURS:-24}
+  MIN_POLL_INTERVAL_SECONDS: ${MIN_POLL_INTERVAL_SECONDS:-60}
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: github_ingestor_development
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "6379:6379"
+
+  web:
+    build: .
+    environment:
+      <<: *app-env
+      DB_PREPARE: "true"
+    command: ["bundle", "exec", "puma", "-C", "config/puma.rb"]
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/up"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
+  worker:
+    build: .
+    environment:
+      <<: *app-env
+    command: ["bundle", "exec", "sidekiq", "-C", "config/sidekiq.yml"]
+    depends_on:
+      web:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  ingest:
+    build: .
+    environment:
+      <<: *app-env
+    command: ["bundle", "exec", "rake", "ingest:run"]
+    depends_on:
+      web:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    profiles: ["ingest"]
+
+  test:
+    build: .
+    environment:
+      <<: *app-env
+      RAILS_ENV: test
+      DATABASE_NAME: github_ingestor_test
+      DB_PREPARE: "true"
+    command: ["bundle", "exec", "rspec"]
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    profiles: ["test"]
+
+volumes:
+  pg_data:
+  redis_data:

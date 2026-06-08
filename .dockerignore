@@ -1,0 +1,13 @@
+.git
+.gitignore
+log/*
+tmp/*
+!log/.keep
+!tmp/.keep
+coverage
+.env
+.env.local
+*.md
+!README.md
+node_modules
+*.docx

@@ -1,0 +1,11 @@
+/.bundle
+/log/*
+/tmp/*
+!/log/.keep
+!/tmp/.keep
+/storage/*
+.env
+.env.local
+*.rbc
+.byebug_history
+/coverage

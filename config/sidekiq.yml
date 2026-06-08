@@ -1,0 +1,6 @@
+---
+# Low concurrency keeps outbound GitHub calls in check.
+:concurrency: <%= ENV.fetch("SIDEKIQ_CONCURRENCY", 2) %>
+:queues:
+  - default
+  - enrichment

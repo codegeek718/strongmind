@@ -72,8 +72,12 @@ class RateLimiter
     headers.each_with_object({}) { |(k, v), acc| acc[k.to_s.downcase] = v }
   end
 
+  # A ConnectionPool is checked out via #with; a bare Redis client is used
+  # directly. We test for ConnectionPool explicitly because ActiveSupport 7.1
+  # adds Object#with to every object, so respond_to?(:with) is no longer a
+  # reliable way to tell the two apart.
   def with_redis(&block)
-    if @redis.respond_to?(:with)
+    if defined?(ConnectionPool) && @redis.is_a?(ConnectionPool)
       @redis.with(&block)
     else
       block.call(@redis)
